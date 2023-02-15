@@ -183,6 +183,13 @@ Requires:           %{name}%{?_isa} = %{version}-%{release}
 %description plugin-mock
 Provides a dummy mock:// protocol for %{name}.
 
+%package plugin-iperf
+Summary:            Provides iperf protocol for %{name}
+Requires:           %{name}%{?_isa} = %{version}-%{release}
+
+%description plugin-iperf
+Provides iperf:// protocol for %{name}.
+
 
 %package all
 Summary:            Meta package for GFAL 2.0 install
@@ -250,7 +257,8 @@ fi
 %install
 %cmake3_install
 
-%ldconfig_scriptlets
+# Not sure if it is required. But it triggers some error.
+# %ldconfig_scriptlets
 
 %files
 %{_bindir}/gfal2_version
@@ -331,6 +339,11 @@ fi
 %{_libdir}/%{name}-plugins/libgfal_plugin_mock.so*
 %{_pkgdocdir}/README_PLUGIN_MOCK
 %config(noreplace) %{_sysconfdir}/%{name}.d/mock_plugin.conf
+
+%files plugin-iperf
+%{_libdir}/%{name}-plugins/libgfal_plugin_iperf.so*
+%{_pkgdocdir}/README_PLUGIN_IPERF
+%config(noreplace) %{_sysconfdir}/%{name}.d/iperf_plugin.conf
 
 %files tests
 %{_bindir}/gfal2-unit-tests
