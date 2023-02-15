@@ -1,0 +1,139 @@
+/*
+ * Copyright (c) CERN 2013-2017
+ *
+ * Copyright (c) Members of the EMI Collaboration. 2010-2013
+ *  See  http://www.eu-emi.eu/partners for details on the copyright
+ *  holders.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef GFAL_IPERF_PLUGIN_H
+#define GFAL_IPERF_PLUGIN_H
+
+#include <gfal_plugins_api.h>
+
+// Types
+typedef enum {
+    STAT_SOURCE = 0,
+    STAT_DESTINATION_BEFORE_TRANSFER,
+    STAT_DESTINATION_AFTER_TRANSFER
+} StatStage;
+
+
+typedef struct {
+    gfal2_context_t handle;
+    StatStage stat_stage;
+    char enable_signals;
+} IperfPluginData;
+
+
+// Helpers
+const char *gfal_iperf_plugin_getName();
+
+GQuark gfal2_get_plugin_iperf_quark();
+
+void gfal_plugin_iperf_report_error(const char *msg, int errn, GError **err);
+
+void gfal_plugin_iperf_get_hostname(const char *url, char *value, size_t val_size);
+
+void gfal_plugin_iperf_get_value(const char *url, const char *key, char *value, size_t val_size);
+
+long long gfal_plugin_iperf_get_int_from_str(const char* buff);
+
+// Metadata operations
+int gfal_plugin_iperf_stat(plugin_handle plugin_data,
+    const char *path, struct stat *buf, GError **err);
+
+int gfal_plugin_iperf_unlink(plugin_handle plugin_data,
+    const char *url, GError **err);
+
+int gfal_iperf_checksumG(plugin_handle plugin_data, const char* url,
+    const char* check_type, char * checksum_buffer, size_t buffer_length,
+    off_t start_offset, size_t data_length, GError ** err);
+
+ssize_t gfal_iperf_getxattrG(plugin_handle plugin_data, const char* url, const char* key,
+    void* buff, size_t s_buff, GError** err);
+
+// Directory operations
+gfal_file_handle gfal_plugin_iperf_opendir(plugin_handle plugin_data,
+    const char *url, GError **err);
+
+int gfal_plugin_iperf_closedir(plugin_handle plugin_data,
+    gfal_file_handle dir_desc, GError **err);
+
+struct dirent *gfal_plugin_iperf_readdirpp(plugin_handle plugin_data,
+    gfal_file_handle dir_desc, struct stat *st,
+    GError **err);
+
+struct dirent *gfal_plugin_iperf_readdir(plugin_handle plugin_data,
+    gfal_file_handle dir_desc, GError **err);
+
+// IO operations
+gfal_file_handle gfal_plugin_iperf_open(plugin_handle plugin_data,
+    const char *url, int flag, mode_t mode, GError **);
+
+ssize_t gfal_plugin_iperf_read(plugin_handle, gfal_file_handle fd,
+    void *buff, size_t count, GError **);
+
+ssize_t gfal_plugin_iperf_write(plugin_handle, gfal_file_handle fd,
+    const void *buff, size_t count, GError **);
+
+int gfal_plugin_iperf_close(plugin_handle, gfal_file_handle fd, GError **);
+
+off_t gfal_plugin_iperf_seek(plugin_handle, gfal_file_handle fd,
+    off_t offset, int whence, GError **err);
+
+// Staging
+int gfal_plugin_iperf_bring_online(plugin_handle plugin_data, const char *url,
+    time_t pintime, time_t timeout, char *token, size_t tsize, int async,
+    GError **err);
+
+int gfal_plugin_iperf_bring_online_v2(plugin_handle plugin_data, const char *url, const char *metadata,
+                                  time_t pintime, time_t timeout, char *token, size_t tsize, int async,
+                                  GError **err);
+
+int gfal_plugin_iperf_bring_online_poll(plugin_handle plugin_data,
+    const char *url, const char *token, GError **err);
+
+int gfal_plugin_iperf_release_file(plugin_handle plugin_data, const char *url,
+    const char *token, GError **err);
+
+int gfal_plugin_iperf_archive_poll(plugin_handle plugin_data, const char* url, GError** err);
+
+int gfal_plugin_iperf_bring_online_list(plugin_handle plugin_data, int nbfiles,
+    const char *const *urls, time_t pintime, time_t timeout, char *token,
+    size_t tsize, int async, GError **err);
+
+int gfal_plugin_iperf_bring_online_list_v2(plugin_handle plugin_data, int nbfiles,
+                                       const char *const *urls, const char *const *metadata,
+                                       time_t pintime, time_t timeout, char *token,
+                                       size_t tsize, int async, GError **err);
+
+int gfal_plugin_iperf_bring_online_poll_list(plugin_handle plugin_data,
+    int nbfiles, const char *const *urls, const char *token, GError **err);
+
+int gfal_plugin_iperf_release_file_list(plugin_handle plugin_data, int nbfiles,
+    const char *const *urls, const char *token, GError **err);
+
+int gfal_plugin_iperf_abort_file_list(plugin_handle plugin_data, int nbfiles, const char *const *uris, const char *token,
+    GError **err);
+
+int gfal_plugin_iperf_archive_poll_list(plugin_handle plugin_data, int nbfiles, const char* const* urls, GError** errors);
+
+// Copy
+int gfal_plugin_iperf_filecopy(plugin_handle plugin_data,
+    gfal2_context_t context, gfalt_params_t params, const char *src,
+    const char *dst, GError **err);
+
+#endif // GFAL_IPERF_PLUGIN_H

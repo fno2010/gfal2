@@ -16,6 +16,7 @@ set (PLUGIN_GRIDFTP TRUE CACHE STRING "enable compilation of the GRIDFTP plugin"
 set (PLUGIN_HTTP    TRUE CACHE STRING "enable compilation of the HTTP plugin")
 set (PLUGIN_XROOTD  TRUE CACHE STRING "enable compilation of the XROOTD plugin")
 set (PLUGIN_MOCK    FALSE CACHE STRING "enable compilation of the MOCK plugin")
+set (PLUGIN_IPERF   TRUE CACHE STRING "enable compilation of the IPERF plugin")
 
 # build type
 set (CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "type of build")
