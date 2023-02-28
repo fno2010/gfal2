@@ -81,22 +81,30 @@ int gfal_plugin_iperf_filecopy(plugin_handle plugin_data,
         file_size = gfal2_get_opt_integer_with_default(context, "IPERF PLUGIN", "DEFAULT_TRANSFER_SIZE", 100000000);
     }
 
-    gfal2_log(G_LOG_LEVEL_DEBUG, "Parse source file size");
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Parse source file size: %lld", file_size);
 
     plugin_trigger_event(params, gfal2_get_plugin_iperf_quark(), GFAL_EVENT_NONE,
         GFAL_EVENT_TRANSFER_ENTER, "Iperf: %s => %s", src, dst);
     plugin_trigger_event(params, gfal2_get_plugin_iperf_quark(),
         GFAL_EVENT_NONE, GFAL_EVENT_TRANSFER_TYPE, "iperf");
 
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Generating transfer commandline");
+
     // call iperf to generate traffic
     char src_se[GFAL_URL_MAX_LEN] = {0};
     gfal_plugin_iperf_get_hostname(src, src_se, sizeof(src_se));
 
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Parse source hostname: %s", src_se);
+
     char dst_se[GFAL_URL_MAX_LEN] = {0};
     gfal_plugin_iperf_get_hostname(dst, dst_se, sizeof(dst_se));
 
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Parse destination hostname: %s", dst_se);
+
     char iperf_cmd[200] = {0};
     sprintf(iperf_cmd, "ssh %s iperf -c %s -n %lld -i 1 -y C", src_se, dst_se, file_size);
+
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Transfer command arguments: %s", iperf_cmd);
 
     gfalt_transfer_status_t tr_status;
     memset(tr_status, 0x00, sizeof(*tr_status));
