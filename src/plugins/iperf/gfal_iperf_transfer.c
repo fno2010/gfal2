@@ -40,6 +40,35 @@ static void gfal_iperf_cancel_transfer(gfal2_context_t context, void *userdata)
 }
 
 
+static long long gfal_iperf_perf_monitor(
+    gfalt_params_t params, const char *tr_progress,
+    long long file_size, int seconds, const char *src, const char *dst)
+{
+    struct _gfalt_transfer_status tr_status;
+
+    char **tr_args = g_strsplit(tr_progress, ",", 0);
+
+    if (tr_args != NULL && g_strv_length(tr_args) > 7) {
+        tr_status.status = 0;
+        tr_status.bytes_transfered += gfal_plugin_iperf_get_int_from_str(tr_args[7]);
+        gfal2_log(G_LOG_LEVEL_DEBUG, "raw data: %s, transferred window: %lld", tr_args[7], tr_status.bytes_transfered);
+        if (tr_status.bytes_transfered > file_size) {
+            tr_status.bytes_transfered = file_size;
+        }
+        tr_status.transfer_time = seconds;
+        if (seconds > 0)
+            tr_status.average_baudrate = tr_status.bytes_transfered / seconds;
+        tr_status.instant_baudrate = tr_status.average_baudrate;
+
+        plugin_trigger_monitor(params, &tr_status, src, dst);
+        gfal2_log(G_LOG_LEVEL_DEBUG, "bytes: %lld, avg: %lld, inst: %lld, elapsed: %d", tr_status.bytes_transfered, tr_status.average_baudrate, tr_status.instant_baudrate, tr_status.transfer_time);
+    }
+
+    g_strfreev(tr_args);
+    return tr_status.bytes_transfered;
+}
+
+
 int gfal_plugin_iperf_filecopy(plugin_handle plugin_data,
     gfal2_context_t context, gfalt_params_t params, const char *src,
     const char *dst, GError **err)
@@ -83,6 +112,24 @@ int gfal_plugin_iperf_filecopy(plugin_handle plugin_data,
 
     gfal2_log(G_LOG_LEVEL_DEBUG, "Parse source file size: %lld", file_size);
 
+    // get ssh login user for the source
+    char ssh_user[GFAL_URL_MAX_LEN] = {0};
+    gfal_plugin_iperf_get_value(src, "user", size_src, sizeof(size_src));
+    if (ssh_user[0] == '\0') {
+        char *default_ssh_user = gfal2_get_opt_string_with_default(context, "IPERF PLUGIN", "DEFAULT_SSH_USER", "root");
+        strcpy(ssh_user, default_ssh_user);
+        g_free(default_ssh_user);
+    }
+
+    // get tcp congestion control algorithm for the transfer
+    char tcp_cc[GFAL_URL_MAX_LEN] = {0};
+    gfal_plugin_iperf_get_value(src, "tcp_cc", size_src, sizeof(size_src));
+    if (tcp_cc[0] == '\0') {
+        char *default_tcp_cc = gfal2_get_opt_string_with_default(context, "IPERF PLUGIN", "DEFAULT_SSH_USER", "cubic");
+        strcpy(tcp_cc, default_tcp_cc);
+        g_free(default_tcp_cc);
+    }
+
     plugin_trigger_event(params, gfal2_get_plugin_iperf_quark(), GFAL_EVENT_NONE,
         GFAL_EVENT_TRANSFER_ENTER, "Iperf: %s => %s", src, dst);
     plugin_trigger_event(params, gfal2_get_plugin_iperf_quark(),
@@ -102,46 +149,30 @@ int gfal_plugin_iperf_filecopy(plugin_handle plugin_data,
     gfal2_log(G_LOG_LEVEL_DEBUG, "Parse destination hostname: %s", dst_se);
 
     char iperf_cmd[200] = {0};
-    sprintf(iperf_cmd, "ssh %s iperf -c %s -n %lld -i 1 -y C", src_se, dst_se, file_size);
+    sprintf(iperf_cmd, "ssh -l %s %s iperf -c %s -n %lld -i 1 -y C -Z %s", ssh_user, src_se, dst_se, file_size, tcp_cc);
 
     gfal2_log(G_LOG_LEVEL_DEBUG, "Transfer command arguments: %s", iperf_cmd);
-
-    gfalt_transfer_status_t tr_status;
-    memset(tr_status, 0x00, sizeof(*tr_status));
 
     FILE *tr;
     tr = popen(iperf_cmd, "r");
 
     char tr_progress[256];
     int seconds = 0;
+    long long transfered_size = 0;
     while (fgets(tr_progress, sizeof(tr_progress), tr) != NULL) {
         seconds++;
 
         gfal2_log(G_LOG_LEVEL_DEBUG, "progress line: %s", tr_progress);
         // get iperf progress
-        char **tr_args = g_strsplit(tr_progress, ",", 0);
-
-        if (tr_args != NULL && g_strv_length(tr_args) > 7) {
-            tr_status->status = 0;
-            tr_status->bytes_transfered += gfal_plugin_iperf_get_int_from_str(tr_args[7]);
-            gfal2_log(G_LOG_LEVEL_DEBUG, "raw data: %s, transferred window: %lld", tr_args[7], tr_status->bytes_transfered);
-            if (tr_status->bytes_transfered > file_size) {
-                tr_status->bytes_transfered = file_size;
-            }
-            tr_status->transfer_time = seconds;
-            if (seconds > 0)
-                tr_status->average_baudrate = tr_status->bytes_transfered / seconds;
-            tr_status->instant_baudrate = tr_status->average_baudrate;
-
-            plugin_trigger_monitor(params, tr_status, src, dst);
-            gfal2_log(G_LOG_LEVEL_DEBUG, "bytes: %lld, avg: %lld, inst: %lld, elapsed: %d", tr_status->bytes_transfered, tr_status->average_baudrate, tr_status->instant_baudrate, tr_status->transfer_time);
-        }
-
-        g_strfreev(tr_args);
+        transfered_size = gfal_iperf_perf_monitor(params, tr_progress, file_size, seconds, src, dst);
     }
 
     int status = pclose(tr);
-    if (status == -1) {
+    gfal2_log(G_LOG_LEVEL_DEBUG, "iperf command finished, status: %d", status);
+
+    // Do not trust pclose unless file transfer is not finished
+    if (transfered_size < file_size && status == -1) {
+        gfal2_log(G_LOG_LEVEL_DEBUG, "iperf command failed, status: %d", status);
         gfal_plugin_iperf_report_error("Iperf test failed", EIO, err);
     }
 
@@ -149,9 +180,16 @@ int gfal_plugin_iperf_filecopy(plugin_handle plugin_data,
     plugin_trigger_event(params, gfal2_get_plugin_iperf_quark(), GFAL_EVENT_NONE,
         GFAL_EVENT_TRANSFER_EXIT, "Iperf finished in %d seconds", seconds);
 
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Jump over to the destination stat");
+
     // Jump over to the destination stat
     IperfPluginData *mdata = plugin_data;
+
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Get plugin data");
+
     mdata->stat_stage = STAT_DESTINATION_AFTER_TRANSFER;
+
+    gfal2_log(G_LOG_LEVEL_DEBUG, "Write stat stage");
 
     // validate destination checksum
     if (!*err && (checksum_method & GFALT_CHECKSUM_TARGET)) {
